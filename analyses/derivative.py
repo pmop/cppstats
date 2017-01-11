@@ -38,6 +38,7 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 __lib_subfolder = "lib"
 sys.path.append(os.path.abspath(__lib_subfolder))  # lib subfolder
 
+from lib.cppstatsutils import logParseProgress
 
 # #################################################
 # external modules
@@ -1046,8 +1047,7 @@ def apply(folder):
                 os.path.join(folder, file))
             continue
 
-        print('INFO: parsing file (%5d) of (%5d) -- (%s).' %
-            (fcount, ftotal, os.path.join(folder, file)))
+        logParseProgress(fcount, ftotal, folder, file)
 
         root = tree.getroot()
         try:

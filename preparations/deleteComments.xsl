@@ -25,7 +25,7 @@ Contributors:
 	xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
 	xmlns:cpp="http://www.sdml.info/srcML/cpp"
 	xmlns:srcml="http://www.sdml.info/srcML/src"
->
+	>
 
 <!-- replace comments with empty lines -->
 <xsl:template match="srcml:comment" name="lines">
@@ -42,6 +42,16 @@ Contributors:
    </xsl:call-template>
   </xsl:if>
 </xsl:template>
+
+<!--
+    For some reason, <escape char="0xc"/> will become <escape /> in
+    the output file. But <escape /> elements without an attribute make
+    srcml2src segfault.  So we rather delete those elements, at the
+    price of losing that small piece of information.
+-->
+<xsl:template match="srcml:escape"
+	      name="deleteEscapeElementsBecauseXsltprocOutputMakesSrml2srcCrash"
+	      />
 
 <xsl:template match="*">
 	<xsl:copy>

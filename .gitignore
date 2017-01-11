@@ -66,3 +66,7 @@ dist/
 
 # todonotes
 *.tdo
+
+deps/
+reinstall.sh
+.rsync-filter
