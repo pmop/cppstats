@@ -94,8 +94,13 @@ def filterForFiles(dirpath, contents, pattern=_filepattern):
                        ]
     return filesToIgnore + foldersToIgnore
 
+def dieWithExSoftware(command, returnCode):
+    print >> sys.stderr, "ERROR Command %s failed with exitcode %d and was killed by an OS signal." \
+        %(repr(command),returnCode,)
+    print >> sys.stderr, "ERROR Working directory was: %s" %(repr(os.getcwd()),)
+    sys.exit(os.EX_SOFTWARE)
 
-def runBashCommand(command, shell=False, stdin=None, stdout=None):
+def runBashCommand(command, shell=False, stdin=None, stdout=None, osErrorHandler=dieWithExSoftware):
     # split command if not a list/tuple is given already
     if type(command) is str:
         command = command.split()
@@ -106,14 +111,12 @@ def runBashCommand(command, shell=False, stdin=None, stdout=None):
 
     if process.returncode != 0:
         if process.returncode < 0:
-            print >> sys.stderr, "ERROR Command %s failed with exitcode %d and was killed by an OS signal." \
-              %(repr(command),process.returncode,)
-            print >> sys.stderr, "ERROR Working directory was: %s" %(repr(os.getcwd()),)
-            sys.exit(os.EX_SOFTWARE)
+            return osErrorHandler(command, process.returncode)
         else:
             print >> sys.stderr, "WARN Command %s failed with exitcode %d." \
               %(repr(command),process.returncode,)
             print >> sys.stderr, "WARN Working directory was: %s" %(repr(os.getcwd()),)
+    return process.returncode
 
               
 def replaceMultiplePatterns(replacements, infile, outfile):
@@ -141,9 +144,12 @@ def silentlyRemoveFile(filename):
             raise  # re-raise exception if a different error occured
 
 
-def src2srcml(src, srcml):
+def src2srcml(src, srcml, osErrorHandler=dieWithExSoftware):
     __s2sml = "src2srcml"
-    runBashCommand([__s2sml, src, "--language=C"], stdout=open(srcml, 'w+'))  # + " -o " + srcml)
+    runBashCommand([__s2sml, src, "--language=C"]
+                   , stdout=open(srcml, 'w+')
+                   , osErrorHandler=osErrorHandler
+    ) # + " -o " + srcml)
     # FIXME incorporate "|| rm ${f}.xml" from bash
 
 
@@ -211,6 +217,25 @@ def find_files(dir_name):
         raise shutil.Error(errors)
     return result
 
+
+class DieWithExSoftwareIfThresholdReached(object):
+    def __init__(self, maxErrors,):
+        self.maxErrors = maxErrors
+        self.errorsSeen = 0
+
+    def __call__(self, command, returnCode):
+        print >> sys.stderr, "WARN Command %s failed with exitcode %d and was killed by an OS signal." \
+            %(repr(command), returnCode,)
+        print >> sys.stderr, "WARN Working directory was: %s" %(repr(os.getcwd()),)
+        self.errorsSeen += 1
+        if self.errorsSeen > self.maxErrors:
+            print >> sys.stderr, "ERROR: Too many errors (%d). Aborting cppstats." \
+                %(self.errorsSeen,)
+            sys.exit(os.EX_SOFTWARE)
+        
+        return returnCode
+
+
 # #################################################
 # abstract preparation thread
 
@@ -222,6 +247,7 @@ class AbstractPreparationThread(object):
     def __init__(self, options, inputfolder=None, inputfile=None):
         self.options = options
         self.notrunnable = False
+        self.src2srcmlErrorHandler = dieWithExSoftware
 
         if (inputfolder):
             self.file = None
@@ -272,6 +298,8 @@ class AbstractPreparationThread(object):
         self.startup()
 
         self.preparedFilesByRelName = self.findPreparedFiles()
+
+        ## Some log messages for debuggin the --prepareFrom option
         if False:
             print >> sys.stderr, "The following prepared files were found:"
             for k,v in self.preparedFilesByRelName.items():
@@ -293,6 +321,9 @@ class AbstractPreparationThread(object):
         else:
             # copy C and H files to self.subfolder
             self.copyToSubfolder()
+
+            self.installSrc2srcmlErrorHandlerForFilesInSubfolder()
+            
             # preparation for all files in the self.subfolder (only C and H files)
             for dirname, subFolders, files in os.walk(self.subfolder):
                 non_source_files = filterForFiles(dirname, files)
@@ -308,6 +339,32 @@ class AbstractPreparationThread(object):
                         self.logLazySkip()
                 
         self.teardown()
+
+    def installSrc2srcmlErrorHandlerForFilesInSubfolder(self,):
+        PERCENT_ERRORS=0.5
+
+        numAllFiles = self.countFilesToPrepareInSubfolder()
+        # Don't allow any errors if there is only one file.  Otherwise
+        # allow a tiny percentage of files to fail, but at least one.
+        threshold=0
+        if numAllFiles > 1:
+            fthreshold = numAllFiles / 100.0 * PERCENT_ERRORS
+            roundedIntThreshold = int(round(fthreshold))
+            # Allow at least on erroneous file
+            threshold = max(roundedIntThreshold, 1)
+        self.src2srcmlErrorHandler = DieWithExSoftwareIfThresholdReached(threshold)
+
+    def countFilesToPrepareInSubfolder(self,):
+        result = 0
+        for dirname, subFolders, files in os.walk(self.subfolder):
+            non_source_files = filterForFiles(dirname, files)
+            for fn in files:
+                if fn in non_source_files:
+                    continue
+                else:
+                    result += 1
+        return result
+
 
     def canSkipPreparation(self):
         if not self.options.lazyPreparation:
@@ -330,10 +387,6 @@ class AbstractPreparationThread(object):
             sourceFolder = os.path.join(folder, self.sourcefolder)
             # Preparation results are found here
             preparedFolder = os.path.join(folder, self.getSubfolder())
-
-            #print >> sys.stderr, "XXX         folder: %s" %(folder,)
-            #print >> sys.stderr, "XXX   sourceFolder: %s" %(sourceFolder,)
-            #print >> sys.stderr, "XXX preparedFolder: %s" %(preparedFolder,)
 
             if (not os.path.isdir(sourceFolder)) or (not os.path.isdir(preparedFolder)):
                 continue
@@ -482,7 +535,7 @@ class AbstractPreparationThread(object):
         self.backupCurrentFile()  # backup file
 
         # call src2srcml to transform code to xml
-        src2srcml(self.currentFile, tmp)
+        src2srcml(self.currentFile, tmp, osErrorHandler=self.src2srcmlErrorHandler)
 
         # delete all comments in the xml and write to another file
         runBashCommand(["xsltproc", getPreparationScript("deleteComments.xsl"), tmp], stdout=open(tmp_out, 'w+'))
@@ -596,7 +649,7 @@ class AbstractPreparationThread(object):
         dest = self.currentFile + ".xml"
 
         # transform to srcml
-        src2srcml(source, dest)
+        src2srcml(source, dest, osErrorHandler=self.src2srcmlErrorHandler)
 
 
 # #################################################
