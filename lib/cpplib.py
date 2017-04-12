@@ -99,11 +99,13 @@ def _parseIfDefExpression(ifdefexp):
     try:
         rsig = expr.parseString(ifdefexp)[0]
     except pypa.ParseException, e:
-        print('ERROR (parse): cannot parse sig (%s) -- (%s)' %
-                (ifdefexp, e.col))
+        print 'ERROR (parse): cannot parse sig (%s) -- (%s)' % (ifdefexp, e.col,)
+        return ifdefexp
+    except (KeyError, ValueError,), e:
+        print 'ERROR (parse): cannot parse sig (%s) ~~ (%s)' % (ifdefexp, e,)
         return ifdefexp
     except RuntimeError:
-        print('ERROR (time): cannot parse sig (%s)' % (ifdefexp))
+        print 'ERROR (time): cannot parse sig (%s)' % (ifdefexp,)
         return ifdefexp
     return (mal, ''.join(rsig))
 

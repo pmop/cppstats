@@ -248,11 +248,13 @@ def _parseFeatureSignature(sig):
     try:
         rsig = expr.parseString(sig)[0]
     except pypa.ParseException, e:
-        print('ERROR (parse): cannot parse sig (%s) -- (%s)' %
-                (sig, e.col))
+        print 'ERROR (parse): cannot parse sig (%s) -- (%s)' % (sig, e.col,)
+        return sig
+    except (KeyError, ValueError,), e:
+        print 'ERROR (parse): cannot parse sig (%s) ~~ (%s)' % (sig, e,)
         return sig
     except RuntimeError:
-        print('ERROR (time): cannot parse sig (%s)' % (sig))
+        print 'ERROR (time): cannot parse sig (%s)' % (sig,)
         return sig
     return (mal, ''.join(rsig))
 

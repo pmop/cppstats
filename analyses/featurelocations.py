@@ -328,9 +328,8 @@ def _parseFeatureSignatureAndRewrite(sig):
     except RuntimeError:
         print('ERROR (time): cannot parse sig (%s)' % (sig))
         return sig
-    except (KeyError, ValueError), e:
-        print('ERROR (parse): cannot parse sig (%s) ~~ (%s)' %
-              (sig, e))
+    except (KeyError, ValueError,), e:
+        print 'ERROR (parse): cannot parse sig (%s) ~~ (%s)' % (sig, e,)
         return sig
     return ''.join(rsig)
 
