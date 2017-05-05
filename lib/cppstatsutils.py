@@ -25,4 +25,4 @@ import os
 def logParseProgress(fcount, ftotal, folder, fn):
     path = os.path.relpath(os.path.join(folder, fn), os.getcwd())
     sFtotal = str(ftotal)
-    print 'INFO parsing file %*d/%s: %s' % (len(sFtotal), fcount, sFtotal, path)
+    print 'DEBUG parsing file %*d/%s: %s' % (len(sFtotal), fcount, sFtotal, path)
