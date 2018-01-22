@@ -100,7 +100,23 @@ def dieWithExSoftware(command, returnCode):
     print >> sys.stderr, "ERROR Working directory was: %s" %(repr(os.getcwd()),)
     sys.exit(os.EX_SOFTWARE)
 
-def runBashCommand(command, shell=False, stdin=None, stdout=None, osErrorHandler=dieWithExSoftware):
+def printWarningErrorHandler(command, returnCode):
+    print >> sys.stderr, "WARN Command %s failed with exitcode %d." \
+        %(repr(command), returnCode,)
+    print >> sys.stderr, "WARN Working directory was: %s" %(repr(os.getcwd()),)
+    return returnCode
+
+def makeBashCommandErrorHandler(osErrorHandler=dieWithExSoftware):
+    def handler(command, returnCode):
+        if process.returncode < 0:
+            return osErrorHandler(command, returnCode)
+        else:
+            return printWarningErrorHandler(command, returnCode)
+    return handler
+
+defaultBashCommandErrorHandler = makeBashCommandErrorHandler()
+
+def runBashCommand(command, shell=False, stdin=None, stdout=None, onFailure=defaultBashCommandErrorHandler):
     # split command if not a list/tuple is given already
     if type(command) is str:
         command = command.split()
@@ -110,12 +126,7 @@ def runBashCommand(command, shell=False, stdin=None, stdout=None, osErrorHandler
     process.wait()
 
     if process.returncode != 0:
-        if process.returncode < 0:
-            return osErrorHandler(command, process.returncode)
-        else:
-            print >> sys.stderr, "WARN Command %s failed with exitcode %d." \
-              %(repr(command),process.returncode,)
-            print >> sys.stderr, "WARN Working directory was: %s" %(repr(os.getcwd()),)
+        return onFailure(command, process.returncode)
     return process.returncode
 
               
@@ -145,10 +156,11 @@ def silentlyRemoveFile(filename):
 
 
 def src2srcml(src, srcml, osErrorHandler=dieWithExSoftware):
+    errorHandler = makeBashCommandErrorHandler(osErrorHandler)
     __s2sml = "src2srcml"
     runBashCommand([__s2sml, src, "--language=C"]
                    , stdout=open(srcml, 'w+')
-                   , osErrorHandler=osErrorHandler
+                   , onFailure=errorHandler
     ) # + " -o " + srcml)
     # FIXME incorporate "|| rm ${f}.xml" from bash
 
@@ -538,7 +550,23 @@ class AbstractPreparationThread(object):
         src2srcml(self.currentFile, tmp, osErrorHandler=self.src2srcmlErrorHandler)
 
         # delete all comments in the xml and write to another file
-        runBashCommand(["xsltproc", getPreparationScript("deleteComments.xsl"), tmp], stdout=open(tmp_out, 'w+'))
+        def retryOnFailure(command, returnCode):
+            print >> sys.stderr, \
+                "INFO Command %s failed with exitcode %d. Retrying ..." \
+                %(repr(command), returnCode,)
+            return runBashCommand(["xsltproc",
+                                   ## Prevent parser error : Excessive depth in
+                                   ## document: 256 use XML_PARSE_HUGE option
+                                   "--maxparserdepth", "1024",
+                                   getPreparationScript("deleteComments.xsl"),
+                                   tmp],
+                                  stdout=open(tmp_out, 'w+'))
+        
+        runBashCommand(["xsltproc",
+                        getPreparationScript("deleteComments.xsl"),
+                        tmp],
+                       stdout=open(tmp_out, 'w+'),
+                       onFailure=retryOnFailure)
 
         # re-transform the xml to a normal source file
         srcml2src(tmp_out, self.currentFile)
