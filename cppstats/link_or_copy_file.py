@@ -77,9 +77,13 @@ def link_or_copy_file(srcPath, destPath, overwrite=False, verbose=False):
     destDir = os.path.dirname(destPath)
 
     if os.path.isdir(srcPath):
+        ###print "XXX 1: is a directory %s" %(srcPath,)
         raise IOError(errno.EISDIR, os.strerror(errno.EISDIR), srcPath,)
-    
+
+    if destDir == '':
+        destDir = '.'
     if not os.path.isdir(destDir):
+        ###print "XXX 2: not a directory %s" %(destDir,)
         raise IOError(errno.ENOENT, os.strerror(errno.ENOENT), destDir,)
 
     if os.path.exists(destPath) and os.path.samefile(srcPath, destPath):
@@ -122,17 +126,41 @@ def link_or_copy_file(srcPath, destPath, overwrite=False, verbose=False):
         if verbose:
             print >> sys.stderr, "%s -> %s" %(repr(srcPath)[1:-1],repr(destPath)[1:-1],)
 
+def strip_newline_at_end(fn):
+    if fn.endswith('\n'):
+        return fn[:-1]
+    else:
+        return fn
+
 def main():
-    parser = argparse.ArgumentParser(description='Create a symbolic link from the SRC to DEST. If that fails, create a regular file copy.')
-    parser.add_argument("src", metavar="SRC", help="source file")
-    parser.add_argument("dest", metavar="DEST", help="destination file")
+    parser = argparse.ArgumentParser(description='Create a symbolic link from SRC to DEST. If that fails, create a regular file copy.')
+    parser.add_argument("src", metavar="SRC", help="source file", nargs='?')
+    parser.add_argument("dest", metavar="DEST", help="destination file", nargs='?')
     parser.add_argument("-f", "--force", help="overwrite the destination file if it exists",
                     action="store_true")
     parser.add_argument("-v", "--verbose", help="print progress messages to standard error",
                     action="store_true")
     args = parser.parse_args()
+    
     try:
-        link_or_copy_file(args.src, args.dest, overwrite=args.force, verbose=args.verbose)
+        if args.src and args.dest:
+            link_or_copy_file(args.src, args.dest, overwrite=args.force, verbose=args.verbose)
+        elif not args.src and not args.dest:
+            ##print >> sys.stderr, "Reading files from stdin"
+            src=None
+            for fn in sys.stdin.readlines():
+                if src is None:
+                    src=strip_newline_at_end(fn)
+                else:
+                    dest=strip_newline_at_end(fn)
+                    ###print "%s -> %s" %(src,dest,)
+                    link_or_copy_file(src, dest, overwrite=args.force, verbose=args.verbose)
+                    src=None
+            if src is not None:
+                print >> sys.stderr, "WARNING: One unprocessed file remains in input: `%s'" % (src,)
+        else:
+            print >> sys.stderr, "Either need source and destination file or no files at all."
+            sys.exit(1)
     except Exception as e:
         if args.verbose:
             import traceback
