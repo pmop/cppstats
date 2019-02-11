@@ -108,7 +108,7 @@ def printWarningErrorHandler(command, returnCode):
 
 def makeBashCommandErrorHandler(osErrorHandler=dieWithExSoftware):
     def handler(command, returnCode):
-        if process.returncode < 0:
+        if returnCode < 0:
             return osErrorHandler(command, returnCode)
         else:
             return printWarningErrorHandler(command, returnCode)
