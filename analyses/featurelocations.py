@@ -37,6 +37,7 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 __lib_subfolder = "lib"
 sys.path.append(os.path.abspath(__lib_subfolder))  # lib subfolder
 
+from lib.cppstatsutils import logParseProgress
 
 # #################################################
 # external modules
@@ -326,9 +327,8 @@ def _parseFeatureSignatureAndRewrite(sig):
     except RuntimeError:
         print('ERROR (time): cannot parse sig (%s)' % (sig))
         return sig
-    except ValueError, e:
-        print('ERROR (parse): cannot parse sig (%s) ~~ (%s)' %
-              (sig, e))
+    except (KeyError, ValueError,), e:
+        print 'ERROR (parse): cannot parse sig (%s) ~~ (%s)' % (sig, e,)
         return sig
     return ''.join(rsig)
 
@@ -697,7 +697,7 @@ def apply(folder, options):
 
         # file successfully parsed
         fcount += 1
-        print('INFO: parsing file (%5d) of (%5d) -- (%s).' % (fcount, ftotal, os.path.join(folder, file)))
+        logParseProgress(fcount, ftotal, folder, file)
 
         # print features for this file to list-of-features file
         featureslist = list(__defsetf[__curfile]) \

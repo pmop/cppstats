@@ -25,6 +25,7 @@
 # imports from the std-library
 
 import sys
+import os
 from argparse import ArgumentParser, RawTextHelpFormatter, _VersionAction  # for parameters to this script
 
 # #################################################
@@ -54,6 +55,8 @@ class steps(Enum):
     PREPARATION = 1
     ANALYSIS = 2
 
+OPT_LAZY_PREP = '--lazyPreparation'
+OPT_PREPARE_FROM = '--prepareFrom'
 
 # #################################################
 # custom actions
@@ -104,7 +107,12 @@ def getOptions(kinds, step=steps.ALL):
 
     # version (uses CppstatsVersionAction instead of 'version' as action)
     parser.add_argument('--version', action=CppstatsVersionAction, version=cstats.version())
-
+    
+    parser.add_argument(OPT_LAZY_PREP, action="store_true", dest="lazyPreparation", default=False,
+                        help="Perform preparations lazily: If the prepared srcml file already exists don't recompute it. [default: %(default)s]")
+    
+    parser.add_argument(OPT_PREPARE_FROM, dest="prepareFrom", metavar="LIST_FILE",
+                        help="Try to reuse cppstats preparation results from the folders listed in the file LIST_FILE (one folder per line). If, during preparation of a source file, an identical source file can be found in one of those folders, do not prepare it again, but instead, copy the previous preparation results. Implies `%s'." %(OPT_LAZY_PREP,))
 
     # ADD KIND ARGUMENT
 
@@ -121,7 +129,7 @@ def getOptions(kinds, step=steps.ALL):
 
     # input 1
     inputgroup = parser.add_mutually_exclusive_group(required=False)  # TODO check if True is possible some time...
-    inputgroup.add_argument("--list", type=str, dest="inputlist", metavar="LIST",
+    inputgroup.add_argument("--list", type=str, dest="inputlist", metavar="LIST_FILE",
                             nargs="?", default=__inputlist_default, const=__inputlist_default,
                             help="a file that contains the list of input projects/folders [default: %(default)s]")
     # input 2
@@ -154,7 +162,7 @@ def getOptions(kinds, step=steps.ALL):
                                  "(0=paths to srcML files, 1=paths to source files)")
         parser.add_argument("--filenamesRelative", action="store_true", dest="filenamesRelative", default=False,
                             help="print relative file names [default: %(default)s]\n"
-                                 "e.g., '/projects/apache/_cppstats/afile.c.xml' gets 'afile.c.xml'.")
+                                 "e.g., '/projects/apache/_cppstats/afile.c.xml' becomes 'afile.c.xml'.")
 
 
     # ADD POSSIBLE PREPARATION/ANALYSIS KINDS AND THEIR COMMAND-LINE ARGUMENTS
@@ -177,7 +185,6 @@ def getOptions(kinds, step=steps.ALL):
         # add options for each analysis kind
         for cls in kinds.values():
             cls.addCommandLineOptions(parser)
-
 
     # PARSE OPTIONS
 
@@ -205,9 +212,32 @@ def addConstants(options):
     options.FILENAME_SRCML = 0
     options.FILENAME_SOURCE = 1
 
+def isReadableFile(fn):
+    return os.path.isfile(fn) and os.access(fn, os.R_OK)
 
 def checkConstraints(options):
     # constraints
     if (options.allkinds == True and options.inputfile):
-        print "Using all kinds of preparation for a single input and output file is weird!"
+        print >> sys.stderr, "Using all kinds of preparation for a single input and output file is weird!"
         sys.exit(1)
+
+    if options.inputfile:
+        if (not isReadableFile(options.infile)):
+            print >> sys.stderr, "ERROR: input file '{}' does not exist or cannot be read!".format(options.infile)
+            sys.exit(1)
+            
+    elif options.inputlist:
+        if (not isReadableFile(options.inputlist)):
+            print >> sys.stderr, "ERROR: input-list file '{}' does not exist or cannot be read!".format(options.inputlist)
+            sys.exit(1)
+    else:
+        print >> sys.stderr, "ERROR: At least one of the options `--file' or `---list' must be given!"
+        sys.exit(1)
+
+    if options.prepareFrom:
+        if not isReadableFile(options.prepareFrom):
+            print >> sys.stderr, "ERROR: prepare-from-list file '{}' does not exist or cannot be read!".format(options.prepareFrom)
+            sys.exit(1)
+        if not options.lazyPreparation:
+            print >> sys.stderr, "INFO: implicitly turning on `{}' because `{}' was given.".format(OPT_LAZY_PREP, OPT_PREPARE_FROM,)
+            options.lazyPreparation = True

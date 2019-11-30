@@ -1,7 +1,7 @@
-#!/usr/bin/env bash
+# -*- coding: utf-8 -*-
 # cppstats is a suite of analyses for measuring C preprocessor-based
 # variability in software product lines.
-# Copyright (C) 2015 University of Passau, Germany
+# Copyright (C) 2010-2015 University of Passau, Germany
 #
 # This program is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published
@@ -18,13 +18,11 @@
 # <http://www.gnu.org/licenses/>.
 #
 # Contributors:
-#     Claus Hunsen <hunsen@fim.uni-passau.de>
-#     Andreas Ringlstetter <andreas.ringlstetter@gmail.com>
+#     Wolfram Fenske <wfenske@ovgu.de>
 
+import os
 
-pushd `dirname $0` > /dev/null
-CPPSTATS=`pwd`
-popd > /dev/null
-
-PYTHONPATH="${CPPSTATS/lib}:${CPPSTATS/cppstats}${PYTHONPATH:+:}${PYTHONPATH}"
-PYTHONPATH=${PYTHONPATH} exec "$CPPSTATS/cppstats/cppstats.py" "$@"
+def logParseProgress(fcount, ftotal, folder, fn):
+    path = os.path.relpath(os.path.join(folder, fn), os.getcwd())
+    sFtotal = str(ftotal)
+    print 'DEBUG parsing file %*d/%s: %s' % (len(sFtotal), fcount, sFtotal, path)
