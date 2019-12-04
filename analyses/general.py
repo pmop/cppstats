@@ -31,6 +31,12 @@ import sys
 import xmlrpclib
 from argparse import ArgumentParser, RawTextHelpFormatter
 
+def handle_cygwinlike_path(cygwin_path_like):
+    cygwin_path_like = cygwin_path_like.replace("/cygdrive/c/","")
+    cygwin_path_like = cygwin_path_like.replace("/","\\")
+    cygwin_path_like = "C:\\" + cygwin_path_like
+    return cygwin_path_like
+
 
 # #################################################
 # path adjustments, so that all imports can be done relative to these paths
@@ -1207,7 +1213,11 @@ def apply(folder, options):
     # get statistics for all files; write results into csv
     # and merge the features
     for file in files:
+        if file.startswith("/cygdrive"):
+            file = handle_cygwinlike_path(file)
+
         __curfile = file
+
 
         try:
             tree = etree.parse(file)

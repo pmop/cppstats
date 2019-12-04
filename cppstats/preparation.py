@@ -81,6 +81,12 @@ def notify(message):
     # notice = pynotify.Notification(message)
     # notice.show()
 
+def handle_cygwinlike_path(cygwin_path_like):
+    cygwin_path_like = cygwin_path_like.replace("/cygdrive/c/","")
+    cygwin_path_like = cygwin_path_like.replace("/","\\")
+    cygwin_path_like = "C:\\" + cygwin_path_like
+    return cygwin_path_like
+
 
 # function for ignore pattern
 def filterForFiles(dirpath, contents, pattern=_filepattern):
@@ -121,9 +127,14 @@ def runBashCommand(command, shell=False, stdin=None, stdout=None, onFailure=defa
     if type(command) is str:
         command = command.split()
 
+    print("\033[31;1;4mDEBUG " + str (command) + "\033[0m")
+    if len(command) >= 2 and command[1].startswith("/cygdrive"):
+        command[1] = handle_cygwinlike_path(command[1])
+        print("\033[31;1;4mDEBUG " + str (command) + "\033[0m")
     process = subprocess.Popen(command, shell=shell, stdin=stdin, stdout=stdout, stderr=stdout)
     out, err = process.communicate()  # TODO do something with the output
     process.wait()
+
 
     if process.returncode != 0:
         return onFailure(command, process.returncode)
@@ -157,7 +168,7 @@ def silentlyRemoveFile(filename):
 
 def src2srcml(src, srcml, osErrorHandler=dieWithExSoftware):
     errorHandler = makeBashCommandErrorHandler(osErrorHandler)
-    __s2sml = "src2srcml"
+    __s2sml = "srcml"
     runBashCommand([__s2sml, src, "--language=C"]
                    , stdout=open(srcml, 'w+')
                    , onFailure=errorHandler
