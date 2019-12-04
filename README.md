@@ -1,10 +1,6 @@
 # cppstats
 
-
-## License & Copyright
-* Copyright (C) 2009-2015 University of Passau, Germany
-
-All rights reserved.
+## This fork merges the latest changes from wfenske/cppstats
 
 cppstats is covered by the GNU Lesser General Public License.
 The full license text is distributed with this software. See the `LICENSE.LESSER` file.
